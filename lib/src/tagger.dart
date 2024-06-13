@@ -1,3 +1,5 @@
+// ignore_for_file: doc_directive_missing_closing_tag
+
 import 'package:flutter/material.dart';
 import 'package:fluttertagger/src/tagged_text.dart';
 import 'package:fluttertagger/src/trie.dart';
@@ -43,8 +45,9 @@ class FlutterTagger extends StatefulWidget {
     required this.controller,
     required this.onSearch,
     required this.builder,
+    this.overlayBorderRadius,
     this.padding = EdgeInsets.zero,
-    this.overlayHeight = 380,
+    this.overlayMaxHeight = 380,
     this.triggerCharacterAndStyles = const {},
     this.onFormattedTextChanged,
     this.searchRegex,
@@ -60,11 +63,14 @@ class FlutterTagger extends StatefulWidget {
   ///Widget shown in the overlay when search context is active.
   final Widget overlay;
 
+  ///Border radius for [overlay].
+  final BorderRadius? overlayBorderRadius;
+
   ///Padding applied to [overlay].
   final EdgeInsetsGeometry padding;
 
   ///[overlay]'s height.
-  final double overlayHeight;
+  final double overlayMaxHeight;
 
   ///Formats and replaces tags for raw text retrieval.
   ///By default, tags are replaced in this format:
@@ -129,11 +135,11 @@ class _FlutterTaggerState extends State<FlutterTagger> {
     debugLabel: "FlutterTagger's child TextField Container key",
   );
 
-  late Offset _offset = Offset.zero;
   late double _width = 0;
   late bool _hideOverlay = true;
   OverlayEntry? _overlayEntry;
   late final OverlayState _overlayState = Overlay.of(context);
+  final LayerLink _layerLink = LayerLink();
 
   ///Formats tag text to include id
   String _formatTagText(String id, String tag, String triggerCharacter) {
@@ -154,7 +160,6 @@ class _FlutterTaggerState extends State<FlutterTagger> {
       final renderBox =
           _parentContainerKey.currentContext!.findRenderObject() as RenderBox;
       _width = renderBox.size.width;
-      _offset = renderBox.localToGlobal(Offset.zero);
     } catch (e) {
       debugPrint(e.toString());
     }
@@ -201,11 +206,41 @@ class _FlutterTaggerState extends State<FlutterTagger> {
   OverlayEntry _createOverlay() {
     return OverlayEntry(
       builder: (_) => Positioned(
-        left: _offset.dx,
-        width: _width,
-        height: widget.overlayHeight,
-        top: _offset.dy - (widget.overlayHeight + widget.padding.vertical),
-        child: widget.overlay,
+        width: _width, 
+        height: widget.overlayMaxHeight,
+        child: CompositedTransformFollower(
+          link: _layerLink,
+          showWhenUnlinked: false,
+          targetAnchor: Alignment.topLeft,
+          offset: Offset(0, - widget.overlayMaxHeight - 8),
+          child: Material(
+            type: MaterialType.transparency,
+            child: Container(
+              alignment: Alignment.bottomCenter,
+              clipBehavior: Clip.hardEdge,
+              decoration: BoxDecoration(
+                borderRadius: widget.overlayBorderRadius,
+              ),
+              constraints: BoxConstraints(
+                maxWidth: _width,
+                maxHeight: widget.overlayMaxHeight,
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    Container(
+                      decoration: BoxDecoration(
+                        borderRadius: widget.overlayBorderRadius,
+                      ),
+                      child: widget.overlay),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -820,7 +855,9 @@ class _FlutterTaggerState extends State<FlutterTagger> {
 
   @override
   Widget build(BuildContext context) {
-    return widget.builder(context, _parentContainerKey);
+    return CompositedTransformTarget(
+      link: _layerLink,
+      child: widget.builder(context, _parentContainerKey));
   }
 }
 

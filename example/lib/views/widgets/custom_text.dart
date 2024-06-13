@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:linkify/linkify.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-class CustomText extends StatelessWidget {
+class CustomText extends StatefulWidget {
   final String text;
   final double? fontSize;
   final Color? textColor;
@@ -40,6 +40,11 @@ class CustomText extends StatelessWidget {
 
   final String _suffix;
 
+  @override
+  State<CustomText> createState() => _CustomTextState();
+}
+
+class _CustomTextState extends State<CustomText> {
   late final List<TextSpan> _spans = [];
 
   int _length = 0;
@@ -54,13 +59,13 @@ class CustomText extends StatelessWidget {
   }
 
   int get _maxTextLength {
-    if (showAllText) return _text.length;
-    return maxTextLength;
+    if (widget.showAllText) return widget._text.length;
+    return widget.maxTextLength;
   }
 
   void _addText(TextSpan span) {
     if (_length >= _maxTextLength) {
-      if (_spans.isNotEmpty && _spans.last.text == _suffix) {
+      if (_spans.isNotEmpty && _spans.last.text == widget._suffix) {
         return;
       }
 
@@ -68,19 +73,19 @@ class CustomText extends StatelessWidget {
         _spans.add(
           _copyWith(
             span,
-            text: text.substring(0, _maxTextLength),
+            text: widget.text.substring(0, _maxTextLength),
           ),
         );
       } else {
         _spans.add(span);
       }
 
-      if (_length > maxTextLength) {
+      if (_length > widget.maxTextLength) {
         _spans.add(
           TextSpan(
-            text: _suffix,
+            text: widget._suffix,
             style: const TextStyle(color: Colors.pink),
-            recognizer: TapGestureRecognizer()..onTap = onSuffixPressed,
+            recognizer: TapGestureRecognizer()..onTap = widget.onSuffixPressed,
           ),
         );
       }
@@ -102,7 +107,7 @@ class CustomText extends StatelessWidget {
 
   TextSpan get _parsedTextSpan {
     final elements = linkify(
-      _text,
+      widget._text,
       options: const LinkifyOptions(
         removeWww: true,
         looseUrl: true,
@@ -122,7 +127,7 @@ class CustomText extends StatelessWidget {
             text: element.text,
             style: TextStyle(
               fontWeight: FontWeight.w400,
-              fontSize: _fontSize,
+              fontSize: widget._fontSize,
               color: Colors.pinkAccent,
             ),
             recognizer: TapGestureRecognizer()
@@ -143,12 +148,12 @@ class CustomText extends StatelessWidget {
             text: element.name,
             style: TextStyle(
               fontWeight: FontWeight.w400,
-              fontSize: _fontSize,
+              fontSize: widget._fontSize,
               color: Colors.pinkAccent,
             ),
             recognizer: TapGestureRecognizer()
               ..onTap = () {
-                onUserTagPressed?.call(element.userId);
+                widget.onUserTagPressed?.call(element.userId);
               },
           ),
         );
@@ -158,12 +163,12 @@ class CustomText extends StatelessWidget {
             text: element.title,
             style: TextStyle(
               fontWeight: FontWeight.w400,
-              fontSize: _fontSize,
+              fontSize: widget._fontSize,
               color: Colors.blueAccent,
             ),
             recognizer: TapGestureRecognizer()
               ..onTap = () {
-                onUserTagPressed?.call(element.title);
+                widget.onUserTagPressed?.call(element.title);
               },
           ),
         );
@@ -173,23 +178,23 @@ class CustomText extends StatelessWidget {
             text: element.text,
             style: TextStyle(
               fontWeight: FontWeight.w400,
-              fontSize: _fontSize,
-              color: textColor ?? Colors.black.withOpacity(.8),
+              fontSize: widget._fontSize,
+              color: widget.textColor ?? Colors.black.withOpacity(.8),
             ),
           ),
         );
       }
     }
 
-    if (showAllText &&
-        _length > maxTextLength &&
+    if (widget.showAllText &&
+        _length > widget.maxTextLength &&
         _spans.isNotEmpty &&
-        _spans.last.text != _suffix) {
+        _spans.last.text != widget._suffix) {
       _spans.add(
         TextSpan(
-          text: _suffix,
+          text: widget._suffix,
           style: const TextStyle(color: Colors.pink),
-          recognizer: TapGestureRecognizer()..onTap = onSuffixPressed,
+          recognizer: TapGestureRecognizer()..onTap = widget.onSuffixPressed,
         ),
       );
     }
@@ -200,12 +205,12 @@ class CustomText extends StatelessWidget {
   Widget build(BuildContext context) {
     TextSpan child = _parsedTextSpan;
 
-    if (parentText != null) {
+    if (widget.parentText != null) {
       child = TextSpan(
-        text: parentText,
-        style: parentTextStyle,
+        text: widget.parentText,
+        style: widget.parentTextStyle,
         children: [child],
-        recognizer: TapGestureRecognizer()..onTap = onParentPressed,
+        recognizer: TapGestureRecognizer()..onTap = widget.onParentPressed,
       );
     }
     return RichText(

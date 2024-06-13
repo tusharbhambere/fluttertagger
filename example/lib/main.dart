@@ -119,7 +119,7 @@ class _HomeViewState extends State<HomeView> with TickerProviderStateMixin {
           tagTextFormatter: (id, tag, triggerCharacter) {
             return "$triggerCharacter$id#$tag#";
           },
-          overlayHeight: overlayHeight,
+          overlayMaxHeight: overlayHeight,
           overlay: SearchResultOverlay(
             animation: _animation,
             tagController: _controller,
