@@ -226,6 +226,7 @@ class _FlutterTaggerState extends State<FlutterTagger> {
                 maxHeight: widget.overlayMaxHeight,
               ),
               child: SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   mainAxisAlignment: MainAxisAlignment.end,
