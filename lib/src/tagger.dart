@@ -46,6 +46,7 @@ class FlutterTagger extends StatefulWidget {
     required this.onSearch,
     required this.builder,
     this.overlayBorderRadius,
+    this.overlayBoxShadow,
     this.padding = EdgeInsets.zero,
     this.overlayMaxHeight = 380,
     this.triggerCharacterAndStyles = const {},
@@ -65,6 +66,9 @@ class FlutterTagger extends StatefulWidget {
 
   ///Border radius for [overlay].
   final BorderRadius? overlayBorderRadius;
+
+  ///Box shadow for [overlay].
+  final List<BoxShadow>? overlayBoxShadow;
 
   ///Padding applied to [overlay].
   final EdgeInsetsGeometry padding;
@@ -220,13 +224,14 @@ class _FlutterTaggerState extends State<FlutterTagger> {
               clipBehavior: Clip.hardEdge,
               decoration: BoxDecoration(
                 borderRadius: widget.overlayBorderRadius,
+                boxShadow: widget.overlayBoxShadow,
               ),
               constraints: BoxConstraints(
                 maxWidth: _width,
                 maxHeight: widget.overlayMaxHeight,
               ),
               child: SingleChildScrollView(
-                physics: const BouncingScrollPhysics(),
+                physics: const ClampingScrollPhysics(),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   mainAxisAlignment: MainAxisAlignment.end,
