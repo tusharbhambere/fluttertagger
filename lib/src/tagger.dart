@@ -1016,7 +1016,7 @@ class FlutterTaggerController extends TextEditingController {
 
   ///Adds a tag.
   void addTag({required String id, required String name}) {
-    _addTagCallback?.call(id, name);
+    _addTagCallback?.call(id, name.replaceAll(' ', '\u00A0\u200B'));
   }
 
   ///Registers callback for clearing [FlutterTagger]'s
