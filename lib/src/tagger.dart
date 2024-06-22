@@ -1,5 +1,8 @@
 // ignore_for_file: doc_directive_missing_closing_tag
 
+import 'dart:async';
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:fluttertagger/src/tagged_text.dart';
 import 'package:fluttertagger/src/trie.dart';
@@ -8,6 +11,12 @@ import 'package:fluttertagger/src/trie.dart';
 typedef FlutterTaggerWidgetBuilder = Widget Function(
   BuildContext context,
   GlobalKey key,
+);
+
+///{@macro builder}
+typedef FlutterTaggerOverlayWidgetBuilder = Widget Function(
+  String query,
+  String triggerCharacter,
 );
 
 ///Formatter for tags in the [TextField] associated
@@ -40,11 +49,11 @@ typedef FlutterTaggerSearchCallback = void Function(
 class FlutterTagger extends StatefulWidget {
   ///Creates an instance of [FlutterTagger]
   const FlutterTagger({
-    Key? key,
-    required this.overlay,
+    super.key,
+    required this.overlayBuilder,
     required this.controller,
-    required this.onSearch,
     required this.builder,
+    this.onSearch,
     this.overlayBorderRadius,
     this.overlayBoxShadow,
     this.padding = EdgeInsets.zero,
@@ -55,14 +64,13 @@ class FlutterTagger extends StatefulWidget {
     this.triggerCharactersRegex,
     this.tagTextFormatter,
     this.animationController,
-  })  : assert(
+  }) : assert(
           triggerCharacterAndStyles != const {},
           "triggerCharacterAndStyles cannot be empty",
-        ),
-        super(key: key);
+        );
 
-  ///Widget shown in the overlay when search context is active.
-  final Widget overlay;
+  ///Builder for overlay widget.
+  final FlutterTaggerOverlayWidgetBuilder overlayBuilder;
 
   ///Border radius for [overlay].
   final BorderRadius? overlayBorderRadius;
@@ -101,7 +109,7 @@ class FlutterTagger extends StatefulWidget {
   ///Called with the search query whenever [FlutterTagger]
   ///enters the search context.
   ////// {@endtemplate}
-  final FlutterTaggerSearchCallback onSearch;
+  final FlutterTaggerSearchCallback? onSearch;
 
   ///{@template builder}
   ///Widget builder for [FlutterTagger]'s associated TextField.
@@ -134,6 +142,8 @@ class FlutterTagger extends StatefulWidget {
 
 class _FlutterTaggerState extends State<FlutterTagger> {
   FlutterTaggerController get controller => widget.controller;
+  final StreamController<String> _queryController =
+      StreamController<String>.broadcast();
 
   late final _parentContainerKey = GlobalKey(
     debugLabel: "FlutterTagger's child TextField Container key",
@@ -181,6 +191,7 @@ class _FlutterTaggerState extends State<FlutterTagger> {
           if (widget.animationController == null) {
             _overlayEntry?.remove();
             _overlayEntry = null;
+            controller._isShowingOverlayStream.add(false);
           }
         } else {
           _overlayEntry?.remove();
@@ -188,6 +199,7 @@ class _FlutterTaggerState extends State<FlutterTagger> {
           _computeSize();
           _overlayEntry = _createOverlay();
           _overlayState.insert(_overlayEntry!);
+          controller._isShowingOverlayStream.add(true);
 
           widget.animationController?.forward();
         }
@@ -210,13 +222,13 @@ class _FlutterTaggerState extends State<FlutterTagger> {
   OverlayEntry _createOverlay() {
     return OverlayEntry(
       builder: (_) => Positioned(
-        width: _width, 
+        width: _width,
         height: widget.overlayMaxHeight,
         child: CompositedTransformFollower(
           link: _layerLink,
           showWhenUnlinked: false,
           targetAnchor: Alignment.topLeft,
-          offset: Offset(0, - widget.overlayMaxHeight - 8),
+          offset: Offset(0, -widget.overlayMaxHeight - 8),
           child: Material(
             type: MaterialType.transparency,
             child: Container(
@@ -240,7 +252,15 @@ class _FlutterTaggerState extends State<FlutterTagger> {
                       decoration: BoxDecoration(
                         borderRadius: widget.overlayBorderRadius,
                       ),
-                      child: widget.overlay),
+                      child: StreamBuilder<String>(
+                          stream: _queryController.stream,
+                          builder: (context, snapshot) {
+                            return widget.overlayBuilder(
+                              snapshot.data ?? '',
+                              _currentTriggerChar,
+                            );
+                          }),
+                    ),
                   ],
                 ),
               ),
@@ -764,6 +784,7 @@ class _FlutterTaggerState extends State<FlutterTagger> {
       _currentTriggerChar = text[position];
       _recomputeTags(oldCachedText, text, position);
       _onFormattedTextChanged();
+      _extractAndSearch(text, text.length);
       return;
     }
 
@@ -821,11 +842,12 @@ class _FlutterTaggerState extends State<FlutterTagger> {
 
       final query = text.substring(
         index + 1,
-        endOffset + 1,
+        min(endOffset + 1, text.length),
       );
 
       _shouldHideOverlay(false);
-      widget.onSearch(query, _currentTriggerChar);
+      widget.onSearch?.call(query, _currentTriggerChar);
+      _queryController.sink.add(query);
     } catch (_, trace) {
       debugPrint(trace.toString());
     }
@@ -848,12 +870,14 @@ class _FlutterTaggerState extends State<FlutterTagger> {
       _shouldHideOverlay(true);
     });
     controller._registerAddTagCallback(_addTag);
+    controller._isShowingOverlayStream.add(!_hideOverlay);
     widget.animationController?.addListener(_animationControllerListener);
   }
 
   @override
   void dispose() {
     controller.removeListener(_tagListener);
+    _queryController.close();
     _overlayEntry?.remove();
     widget.animationController?.removeListener(_animationControllerListener);
     super.dispose();
@@ -862,8 +886,7 @@ class _FlutterTaggerState extends State<FlutterTagger> {
   @override
   Widget build(BuildContext context) {
     return CompositedTransformTarget(
-      link: _layerLink,
-      child: widget.builder(context, _parentContainerKey));
+        link: _layerLink, child: widget.builder(context, _parentContainerKey));
   }
 }
 
@@ -873,12 +896,23 @@ class _FlutterTaggerState extends State<FlutterTagger> {
 ///[FlutterTagger]'s tags, dismissing overlay and retrieving formatted text.
 /// {@endtemplate}
 class FlutterTaggerController extends TextEditingController {
-  FlutterTaggerController({String? text}) : super(text: text);
+  FlutterTaggerController({super.text});
 
   late final Trie _trie = Trie();
   late Map<TaggedText, String> _tags;
 
   late Map<String, TextStyle> _tagStyles;
+
+  final StreamController<bool> _isShowingOverlayStream =
+      StreamController<bool>.broadcast();
+
+  Stream<bool> get isShowingOverlay => _isShowingOverlayStream.stream;
+
+  @override
+  void dispose() {
+    _isShowingOverlayStream.close();
+    super.dispose();
+  }
 
   void _setTagStyles(Map<String, TextStyle> tagStyles) {
     _tagStyles = tagStyles;

@@ -120,10 +120,12 @@ class _HomeViewState extends State<HomeView> with TickerProviderStateMixin {
             return "$triggerCharacter$id#$tag#";
           },
           overlayMaxHeight: overlayHeight,
-          overlay: SearchResultOverlay(
-            animation: _animation,
-            tagController: _controller,
-          ),
+          overlayBuilder: (_, __) {
+            return SearchResultOverlay(
+              animation: _animation,
+              tagController: _controller,
+            );
+          },
           builder: (context, containerKey) {
             return CommentTextField(
               focusNode: _focusNode,
