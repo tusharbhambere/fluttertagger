@@ -260,7 +260,7 @@ class _FlutterTaggerState extends State<FlutterTagger> {
                           ),
                           child: ListView.builder(
                               shrinkWrap: true,
-                              controller: controller.scrollController,
+                              controller: controller._scrollController,
                               physics: const ClampingScrollPhysics(),
                               itemCount: tags.length,
                               itemBuilder: (context, index) {
@@ -963,7 +963,7 @@ class _FlutterTaggerState extends State<FlutterTagger> {
 class FlutterTaggerController extends TextEditingController {
   FlutterTaggerController({super.text});
 
-  final ScrollController scrollController = ScrollController();
+  final ScrollController _scrollController = ScrollController();
 
   late final Trie _trie = Trie();
   late Map<TaggedText, String> _tags;
@@ -983,7 +983,7 @@ class FlutterTaggerController extends TextEditingController {
 
   Stream<int?> get selectedTagIndex => _selectedTagIndex.stream;
 
-  List<TagData> get searchResults => _searchResultsStream.value;
+  List<TagData> get searchResults => _searchResultsStream.hasValue ? _searchResultsStream.value : [];
 
   TagData? get selectedTag => _selectedTagIndex.value == null ||
           _selectedTagIndex.value! < 0 ||
@@ -992,6 +992,14 @@ class FlutterTaggerController extends TextEditingController {
       : searchResults[_selectedTagIndex.value!];
 
   void _updateSearchResult(List<TagData> results) {
+    //Optimizes ui changes
+    final List<TagData> oldTags = searchResults;
+    for (int index = 0; index < results.length; index ++) {
+      final int oldTagIndex = oldTags.indexWhere((oldTag) => oldTag.id == results[index].id);
+      if (oldTagIndex == -1) continue;
+      results[index] = oldTags[oldTagIndex];
+    }
+
     _searchResultsStream.sink.add(results);
     if (results.isEmpty) {
       _selectedTagIndex.sink.add(null);
@@ -1025,16 +1033,15 @@ class FlutterTaggerController extends TextEditingController {
     final selectedTagRenderObject =
         selectedTag?.key.currentContext?.findRenderObject();
     if (selectedTagRenderObject == null) return;
-    scrollController.position.ensureVisible(
+    _scrollController.position.ensureVisible(
       selectedTagRenderObject,
-      alignment: 0.5,
       duration: const Duration(milliseconds: 200),
     );
   }
 
   @override
   void dispose() {
-    scrollController.dispose();
+    _scrollController.dispose();
     _isShowingOverlayStream.close();
     super.dispose();
   }
