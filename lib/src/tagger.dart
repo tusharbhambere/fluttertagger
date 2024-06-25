@@ -247,65 +247,63 @@ class _FlutterTaggerState extends State<FlutterTagger> {
                   final List<TagData> tags = ((snapshot.data as List? ?? [])
                           .getFirstOrNull as List<TagData>? ??
                       []);
-                  return Column(
-                    mainAxisSize: MainAxisSize.min,
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      Flexible(
-                        child: Container(
-                          clipBehavior: Clip.hardEdge,
-                          decoration: BoxDecoration(
-                            borderRadius: widget.overlayBorderRadius,
-                            boxShadow: widget.overlayBoxShadow,
-                          ),
-                          child: ListView.builder(
-                              shrinkWrap: true,
-                              controller: controller._scrollController,
-                              physics: const ClampingScrollPhysics(),
-                              itemCount: tags.length,
-                              itemBuilder: (context, index) {
-                                final TagData tag = tags[index];
-                                final bool isFirst = index == 0;
-                                final bool isLast = index == tags.length - 1;
-                                final BorderRadius borderRadius =
-                                    BorderRadius.only(
-                                  topLeft: isFirst
-                                      ? (widget.overlayBorderRadius?.topLeft ??
-                                          Radius.zero)
-                                      : Radius.zero,
-                                  topRight: isFirst
-                                      ? (widget.overlayBorderRadius?.topRight ??
-                                          Radius.zero)
-                                      : Radius.zero,
-                                  bottomLeft: isLast
-                                      ? (widget.overlayBorderRadius
-                                              ?.bottomLeft ??
-                                          Radius.zero)
-                                      : Radius.zero,
-                                  bottomRight: isLast
-                                      ? (widget.overlayBorderRadius
-                                              ?.bottomRight ??
-                                          Radius.zero)
-                                      : Radius.zero,
-                                );
-                                return Container(
-                                    clipBehavior: Clip.hardEdge,
-                                    decoration: BoxDecoration(
-                                      borderRadius: borderRadius,
-                                    ),
-                                    child: widget.tagItemBuilder(
-                                        tag,
-                                        controller.selectedTag,
-                                        index == tags.length - 1));
-                              }),
-                        ),
-                      ),
-                    ],
-                  );
+                  return _buildOverlay(tags);
                 }),
           ),
         ),
       ),
+    );
+  }
+
+  Column _buildOverlay(List<TagData> tags) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      mainAxisAlignment: MainAxisAlignment.end,
+      children: [
+        Flexible(
+          child: Container(
+            clipBehavior: Clip.hardEdge,
+            decoration: BoxDecoration(
+              borderRadius: widget.overlayBorderRadius,
+              boxShadow: widget.overlayBoxShadow,
+            ),
+            child: SingleChildScrollView(
+              controller: controller._scrollController,
+              physics: const ClampingScrollPhysics(),
+              child: Column(
+                children: List.generate(tags.length, (index) {
+                  final TagData tag = tags[index];
+                  final bool isFirst = index == 0;
+                  final bool isLast = index == tags.length - 1;
+                  final BorderRadius borderRadius = BorderRadius.only(
+                    topLeft: isFirst
+                        ? (widget.overlayBorderRadius?.topLeft ?? Radius.zero)
+                        : Radius.zero,
+                    topRight: isFirst
+                        ? (widget.overlayBorderRadius?.topRight ?? Radius.zero)
+                        : Radius.zero,
+                    bottomLeft: isLast
+                        ? (widget.overlayBorderRadius?.bottomLeft ??
+                            Radius.zero)
+                        : Radius.zero,
+                    bottomRight: isLast
+                        ? (widget.overlayBorderRadius?.bottomRight ??
+                            Radius.zero)
+                        : Radius.zero,
+                  );
+                  return Container(
+                      clipBehavior: Clip.hardEdge,
+                      decoration: BoxDecoration(
+                        borderRadius: borderRadius,
+                      ),
+                      child: widget.tagItemBuilder(tag, controller.selectedTag,
+                          index == tags.length - 1));
+                }),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -983,7 +981,8 @@ class FlutterTaggerController extends TextEditingController {
 
   Stream<int?> get selectedTagIndex => _selectedTagIndex.stream;
 
-  List<TagData> get searchResults => _searchResultsStream.hasValue ? _searchResultsStream.value : [];
+  List<TagData> get searchResults =>
+      _searchResultsStream.hasValue ? _searchResultsStream.value : [];
 
   TagData? get selectedTag => _selectedTagIndex.value == null ||
           _selectedTagIndex.value! < 0 ||
@@ -994,8 +993,9 @@ class FlutterTaggerController extends TextEditingController {
   void _updateSearchResult(List<TagData> results) {
     //Optimizes ui changes
     final List<TagData> oldTags = searchResults;
-    for (int index = 0; index < results.length; index ++) {
-      final int oldTagIndex = oldTags.indexWhere((oldTag) => oldTag.id == results[index].id);
+    for (int index = 0; index < results.length; index++) {
+      final int oldTagIndex =
+          oldTags.indexWhere((oldTag) => oldTag.id == results[index].id);
       if (oldTagIndex == -1) continue;
       results[index] = oldTags[oldTagIndex];
     }
@@ -1007,25 +1007,27 @@ class FlutterTaggerController extends TextEditingController {
   }
 
   void selectNextTag() {
-    if (_searchResultsStream.value.isNotEmpty != true) {
+    if (searchResults.isNotEmpty != true) {
       _selectedTagIndex.sink.add(null);
       return;
     }
-    _selectedTagIndex.sink.add(
+    final int nextIndex =
         (_selectedTagIndex.value == null ? 0 : _selectedTagIndex.value! + 1)
-            .clamp(0, _searchResultsStream.value.length - 1));
+            .clamp(0, searchResults.length - 1);
+    _selectedTagIndex.sink.add(nextIndex);
     _scrollToSelectedTag();
   }
 
   void selectPreviousTag() {
-    if (_searchResultsStream.value.isNotEmpty != true) {
+    if (searchResults.isNotEmpty != true) {
       _selectedTagIndex.sink.add(null);
       return;
     }
-    _selectedTagIndex.sink.add((_selectedTagIndex.value == null
-            ? _searchResultsStream.value.length - 1
+    final int previousIndex = (_selectedTagIndex.value == null
+            ? searchResults.length - 1
             : _selectedTagIndex.value! - 1)
-        .clamp(0, _searchResultsStream.value.length - 1));
+        .clamp(0, searchResults.length - 1);
+    _selectedTagIndex.sink.add(previousIndex);
     _scrollToSelectedTag();
   }
 
