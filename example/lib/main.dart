@@ -92,13 +92,14 @@ class _HomeViewState extends State<HomeView> with TickerProviderStateMixin {
         bottomNavigationBar: FlutterTagger(
           controller: _controller,
           animationController: _animationController,
-          onSearch: (query, triggerChar) {
+          onSearch: (query, triggerChar) async {
             if (triggerChar == "@") {
               searchViewModel.searchUser(query);
             }
             if (triggerChar == "#") {
               searchViewModel.searchHashtag(query);
             }
+            return [];
           },
           triggerCharacterAndStyles: const {
             "@": TextStyle(color: Colors.pinkAccent),

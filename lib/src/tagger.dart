@@ -32,7 +32,7 @@ typedef TagTextFormatter = String Function(
 );
 
 ///{@macro searchCallback}
-typedef FlutterTaggerSearchCallback = void Function(
+typedef FlutterTaggerSearchCallback = Future<List<TagData>> Function(
   String query,
   String triggerCharacter,
 );
@@ -245,8 +245,7 @@ class _FlutterTaggerState extends State<FlutterTagger> {
                 ]),
                 builder: (context, snapshot) {
                   final List<TagData> tags = ((snapshot.data as List? ?? [])
-                          // ignore: sdk_version_since
-                          .firstOrNull as List<TagData>? ??
+                          .getFirstOrNull as List<TagData>? ??
                       []);
                   return Column(
                     mainAxisSize: MainAxisSize.min,
@@ -257,6 +256,7 @@ class _FlutterTaggerState extends State<FlutterTagger> {
                           clipBehavior: Clip.hardEdge,
                           decoration: BoxDecoration(
                             borderRadius: widget.overlayBorderRadius,
+                            boxShadow: widget.overlayBoxShadow,
                           ),
                           child: ListView.builder(
                               shrinkWrap: true,
@@ -265,22 +265,24 @@ class _FlutterTaggerState extends State<FlutterTagger> {
                               itemCount: tags.length,
                               itemBuilder: (context, index) {
                                 final TagData tag = tags[index];
+                                final bool isFirst = index == 0;
+                                final bool isLast = index == tags.length - 1;
                                 final BorderRadius borderRadius =
                                     BorderRadius.only(
-                                  topLeft: index == 0
+                                  topLeft: isFirst
                                       ? (widget.overlayBorderRadius?.topLeft ??
                                           Radius.zero)
                                       : Radius.zero,
-                                  topRight: index == 0
+                                  topRight: isFirst
                                       ? (widget.overlayBorderRadius?.topRight ??
                                           Radius.zero)
                                       : Radius.zero,
-                                  bottomLeft: index == tags.length - 1
+                                  bottomLeft: isLast
                                       ? (widget.overlayBorderRadius
                                               ?.bottomLeft ??
                                           Radius.zero)
                                       : Radius.zero,
-                                  bottomRight: index == tags.length - 1
+                                  bottomRight: isLast
                                       ? (widget.overlayBorderRadius
                                               ?.bottomRight ??
                                           Radius.zero)
@@ -515,6 +517,7 @@ class _FlutterTaggerState extends State<FlutterTagger> {
       );
 
       _onFormattedTextChanged();
+      _defer = false;
     }
   }
 
@@ -870,7 +873,7 @@ class _FlutterTaggerState extends State<FlutterTagger> {
   ///Extracts text appended to the last [_currentTriggerChar] symbol
   ///found in the substring of [text] up until [endOffset]
   ///and executes [FlutterTagger.onSearch].
-  void _extractAndSearch(String text, int endOffset) {
+  Future<void> _extractAndSearch(String text, int endOffset) async {
     try {
       int index = text.substring(0, endOffset).lastIndexOf(_currentTriggerChar);
 
@@ -882,8 +885,9 @@ class _FlutterTaggerState extends State<FlutterTagger> {
       );
 
       _shouldHideOverlay(false);
-      widget.onSearch?.call(query, _currentTriggerChar);
       _queryController.sink.add(query);
+      final tags = await widget.onSearch?.call(query, _currentTriggerChar);
+      controller._updateSearchResult(tags ?? []);
     } catch (_, trace) {
       debugPrint(trace.toString());
     }
@@ -987,7 +991,7 @@ class FlutterTaggerController extends TextEditingController {
       ? null
       : searchResults[_selectedTagIndex.value!];
 
-  void updateSearchResult(List<TagData> results) {
+  void _updateSearchResult(List<TagData> results) {
     _searchResultsStream.sink.add(results);
     if (results.isEmpty) {
       _selectedTagIndex.sink.add(null);
@@ -1177,7 +1181,7 @@ class FlutterTaggerController extends TextEditingController {
 
   ///Adds a tag.
   void addTag({required String id, required String name}) {
-    _addTagCallback?.call(id, name.replaceAll(' ', '\u00A0\u200B'));
+    _addTagCallback?.call(id, name.replaceAll(' ', '\u00A0'));
   }
 
   ///Registers callback for clearing [FlutterTagger]'s
@@ -1331,4 +1335,15 @@ extension _RegExpExtension on RegExp {
 extension _StringExtension on String {
   List<String> splitWithDelim(RegExp pattern) =>
       pattern.allMatchesWithSep(this);
+}
+
+extension ListExtension<T> on List<T> {
+  T? get getFirstOrNull {
+    try {
+      if (isEmpty) return null;
+      return first;
+    } catch (e) {
+      return null;
+    }
+  }
 }
