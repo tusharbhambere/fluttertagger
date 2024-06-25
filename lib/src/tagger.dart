@@ -4,8 +4,12 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:fluttertagger/fluttertagger.dart';
 import 'package:fluttertagger/src/tagged_text.dart';
 import 'package:fluttertagger/src/trie.dart';
+import 'package:rxdart/streams.dart';
+import 'package:rxdart/subjects.dart';
 
 ///{@macro builder}
 typedef FlutterTaggerWidgetBuilder = Widget Function(
@@ -15,8 +19,8 @@ typedef FlutterTaggerWidgetBuilder = Widget Function(
 
 ///{@macro builder}
 typedef FlutterTaggerOverlayWidgetBuilder = Widget Function(
-  String query,
-  String triggerCharacter,
+  List<TagData> tags,
+  TagData? selectedTag,
 );
 
 ///Formatter for tags in the [TextField] associated
@@ -50,7 +54,7 @@ class FlutterTagger extends StatefulWidget {
   ///Creates an instance of [FlutterTagger]
   const FlutterTagger({
     super.key,
-    required this.overlayBuilder,
+    required this.tagItemBuilder,
     required this.controller,
     required this.builder,
     this.onSearch,
@@ -68,9 +72,6 @@ class FlutterTagger extends StatefulWidget {
           triggerCharacterAndStyles != const {},
           "triggerCharacterAndStyles cannot be empty",
         );
-
-  ///Builder for overlay widget.
-  final FlutterTaggerOverlayWidgetBuilder overlayBuilder;
 
   ///Border radius for [overlay].
   final BorderRadius? overlayBorderRadius;
@@ -136,6 +137,10 @@ class FlutterTagger extends StatefulWidget {
   ///trigger character.
   final Map<String, TextStyle> triggerCharacterAndStyles;
 
+  //Builder for each tag item in the [overlay].
+  final Widget Function(TagData tag, TagData? selectedTag, bool isLast)
+      tagItemBuilder;
+
   @override
   State<FlutterTagger> createState() => _FlutterTaggerState();
 }
@@ -193,6 +198,7 @@ class _FlutterTaggerState extends State<FlutterTagger> {
             _overlayEntry = null;
             controller._isShowingOverlayStream.add(false);
           }
+          controller._selectedTagIndex.sink.add(null);
         } else {
           _overlayEntry?.remove();
 
@@ -202,6 +208,7 @@ class _FlutterTaggerState extends State<FlutterTagger> {
           controller._isShowingOverlayStream.add(true);
 
           widget.animationController?.forward();
+          controller._selectedTagIndex.sink.add(0);
         }
       });
     } catch (e) {
@@ -231,40 +238,69 @@ class _FlutterTaggerState extends State<FlutterTagger> {
           offset: Offset(0, -widget.overlayMaxHeight - 8),
           child: Material(
             type: MaterialType.transparency,
-            child: Container(
-              alignment: Alignment.bottomCenter,
-              clipBehavior: Clip.hardEdge,
-              decoration: BoxDecoration(
-                borderRadius: widget.overlayBorderRadius,
-                boxShadow: widget.overlayBoxShadow,
-              ),
-              constraints: BoxConstraints(
-                maxWidth: _width,
-                maxHeight: widget.overlayMaxHeight,
-              ),
-              child: SingleChildScrollView(
-                physics: const ClampingScrollPhysics(),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    Container(
-                      decoration: BoxDecoration(
-                        borderRadius: widget.overlayBorderRadius,
+            child: StreamBuilder(
+                stream: CombineLatestStream.list([
+                  controller.searchResultsStream,
+                  controller.selectedTagIndex
+                ]),
+                builder: (context, snapshot) {
+                  final List<TagData> tags = ((snapshot.data as List? ?? [])
+                          // ignore: sdk_version_since
+                          .firstOrNull as List<TagData>? ??
+                      []);
+                  return Column(
+                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      Flexible(
+                        child: Container(
+                          clipBehavior: Clip.hardEdge,
+                          decoration: BoxDecoration(
+                            borderRadius: widget.overlayBorderRadius,
+                          ),
+                          child: ListView.builder(
+                              shrinkWrap: true,
+                              controller: controller.scrollController,
+                              physics: const ClampingScrollPhysics(),
+                              itemCount: tags.length,
+                              itemBuilder: (context, index) {
+                                final TagData tag = tags[index];
+                                final BorderRadius borderRadius =
+                                    BorderRadius.only(
+                                  topLeft: index == 0
+                                      ? (widget.overlayBorderRadius?.topLeft ??
+                                          Radius.zero)
+                                      : Radius.zero,
+                                  topRight: index == 0
+                                      ? (widget.overlayBorderRadius?.topRight ??
+                                          Radius.zero)
+                                      : Radius.zero,
+                                  bottomLeft: index == tags.length - 1
+                                      ? (widget.overlayBorderRadius
+                                              ?.bottomLeft ??
+                                          Radius.zero)
+                                      : Radius.zero,
+                                  bottomRight: index == tags.length - 1
+                                      ? (widget.overlayBorderRadius
+                                              ?.bottomRight ??
+                                          Radius.zero)
+                                      : Radius.zero,
+                                );
+                                return Container(
+                                    clipBehavior: Clip.hardEdge,
+                                    decoration: BoxDecoration(
+                                      borderRadius: borderRadius,
+                                    ),
+                                    child: widget.tagItemBuilder(
+                                        tag,
+                                        controller.selectedTag,
+                                        index == tags.length - 1));
+                              }),
+                        ),
                       ),
-                      child: StreamBuilder<String>(
-                          stream: _queryController.stream,
-                          builder: (context, snapshot) {
-                            return widget.overlayBuilder(
-                              snapshot.data ?? '',
-                              _currentTriggerChar,
-                            );
-                          }),
-                    ),
-                  ],
-                ),
-              ),
-            ),
+                    ],
+                  );
+                }),
           ),
         ),
       ),
@@ -886,7 +922,32 @@ class _FlutterTaggerState extends State<FlutterTagger> {
   @override
   Widget build(BuildContext context) {
     return CompositedTransformTarget(
-        link: _layerLink, child: widget.builder(context, _parentContainerKey));
+        link: _layerLink,
+        child: StreamBuilder<bool>(
+            stream: controller.isShowingOverlay,
+            builder: (context, snapshot) {
+              final bool isShowingOverlay = snapshot.data ?? false;
+              return CallbackShortcuts(
+                  bindings: isShowingOverlay
+                      ? {
+                          const SingleActivator(LogicalKeyboardKey.enter): () {
+                            final TagData? selectedTag = controller.selectedTag;
+                            if (selectedTag == null) return;
+                            controller.addTag(
+                                id: selectedTag.id, name: selectedTag.name);
+                          },
+                          const SingleActivator(LogicalKeyboardKey.arrowDown):
+                              () {
+                            controller.selectNextTag();
+                          },
+                          const SingleActivator(LogicalKeyboardKey.arrowUp):
+                              () {
+                            controller.selectPreviousTag();
+                          },
+                        }
+                      : {},
+                  child: widget.builder(context, _parentContainerKey));
+            }));
   }
 }
 
@@ -898,6 +959,8 @@ class _FlutterTaggerState extends State<FlutterTagger> {
 class FlutterTaggerController extends TextEditingController {
   FlutterTaggerController({super.text});
 
+  final ScrollController scrollController = ScrollController();
+
   late final Trie _trie = Trie();
   late Map<TaggedText, String> _tags;
 
@@ -908,8 +971,66 @@ class FlutterTaggerController extends TextEditingController {
 
   Stream<bool> get isShowingOverlay => _isShowingOverlayStream.stream;
 
+  final BehaviorSubject<List<TagData>> _searchResultsStream =
+      BehaviorSubject<List<TagData>>();
+  final BehaviorSubject<int?> _selectedTagIndex = BehaviorSubject<int?>();
+
+  Stream<List<TagData>> get searchResultsStream => _searchResultsStream.stream;
+
+  Stream<int?> get selectedTagIndex => _selectedTagIndex.stream;
+
+  List<TagData> get searchResults => _searchResultsStream.value;
+
+  TagData? get selectedTag => _selectedTagIndex.value == null ||
+          _selectedTagIndex.value! < 0 ||
+          _selectedTagIndex.value! >= searchResults.length
+      ? null
+      : searchResults[_selectedTagIndex.value!];
+
+  void updateSearchResult(List<TagData> results) {
+    _searchResultsStream.sink.add(results);
+    if (results.isEmpty) {
+      _selectedTagIndex.sink.add(null);
+    }
+  }
+
+  void selectNextTag() {
+    if (_searchResultsStream.value.isNotEmpty != true) {
+      _selectedTagIndex.sink.add(null);
+      return;
+    }
+    _selectedTagIndex.sink.add(
+        (_selectedTagIndex.value == null ? 0 : _selectedTagIndex.value! + 1)
+            .clamp(0, _searchResultsStream.value.length - 1));
+    _scrollToSelectedTag();
+  }
+
+  void selectPreviousTag() {
+    if (_searchResultsStream.value.isNotEmpty != true) {
+      _selectedTagIndex.sink.add(null);
+      return;
+    }
+    _selectedTagIndex.sink.add((_selectedTagIndex.value == null
+            ? _searchResultsStream.value.length - 1
+            : _selectedTagIndex.value! - 1)
+        .clamp(0, _searchResultsStream.value.length - 1));
+    _scrollToSelectedTag();
+  }
+
+  void _scrollToSelectedTag() {
+    final selectedTagRenderObject =
+        selectedTag?.key.currentContext?.findRenderObject();
+    if (selectedTagRenderObject == null) return;
+    scrollController.position.ensureVisible(
+      selectedTagRenderObject,
+      alignment: 0.5,
+      duration: const Duration(milliseconds: 200),
+    );
+  }
+
   @override
   void dispose() {
+    scrollController.dispose();
     _isShowingOverlayStream.close();
     super.dispose();
   }

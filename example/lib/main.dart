@@ -1,4 +1,3 @@
-import 'package:example/views/widgets/search_result_overlay.dart';
 import 'package:flutter/material.dart';
 import 'package:example/models/post.dart';
 import 'package:example/views/view_models/home_view_model.dart';
@@ -38,7 +37,6 @@ class HomeView extends StatefulWidget {
 
 class _HomeViewState extends State<HomeView> with TickerProviderStateMixin {
   late AnimationController _animationController;
-  late Animation<Offset> _animation;
 
   double overlayHeight = 380;
 
@@ -67,16 +65,6 @@ class _HomeViewState extends State<HomeView> with TickerProviderStateMixin {
     _animationController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 150),
-    );
-
-    _animation = Tween<Offset>(
-      begin: const Offset(0, 0.5),
-      end: Offset.zero,
-    ).animate(
-      CurvedAnimation(
-        parent: _animationController,
-        curve: Curves.easeInOut,
-      ),
     );
   }
 
@@ -120,10 +108,13 @@ class _HomeViewState extends State<HomeView> with TickerProviderStateMixin {
             return "$triggerCharacter$id#$tag#";
           },
           overlayMaxHeight: overlayHeight,
-          overlayBuilder: (_, __) {
-            return SearchResultOverlay(
-              animation: _animation,
-              tagController: _controller,
+          tagItemBuilder: (tag, selectedTag, isLast) {
+            return ListTile(
+              title: Text(tag.name),
+              onTap: () {
+                _controller.addTag(id: tag.id, name: tag.name);
+                _focusNode.requestFocus();
+              },
             );
           },
           builder: (context, containerKey) {
