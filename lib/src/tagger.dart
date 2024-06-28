@@ -1327,7 +1327,11 @@ class FlutterTaggerController extends TextEditingController {
         if (i + 1 < splitText.length) {
           end = start + splitText[i + 1].length;
         }
-        spans.add(TextSpan(text: "$currentText "));
+        if (i != splitText.length - 1) {
+          spans.add(TextSpan(text: "$currentText "));
+        } else {
+          spans.add(TextSpan(text: currentText));
+        }
       }
     }
     return TextSpan(children: spans, style: style);
