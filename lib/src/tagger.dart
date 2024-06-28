@@ -58,9 +58,10 @@ class FlutterTagger extends StatefulWidget {
     required this.controller,
     required this.builder,
     this.onSearch,
+    this.overlayColor,
     this.overlayBorderRadius,
     this.overlayBoxShadow,
-    this.padding = EdgeInsets.zero,
+    this.overlayPadding = EdgeInsets.zero,
     this.overlayMaxHeight = 380,
     this.triggerCharacterAndStyles = const {},
     this.onFormattedTextChanged,
@@ -73,6 +74,9 @@ class FlutterTagger extends StatefulWidget {
           "triggerCharacterAndStyles cannot be empty",
         );
 
+  ///Background color for [overlay].
+  final Color? overlayColor;
+
   ///Border radius for [overlay].
   final BorderRadius? overlayBorderRadius;
 
@@ -80,7 +84,7 @@ class FlutterTagger extends StatefulWidget {
   final List<BoxShadow>? overlayBoxShadow;
 
   ///Padding applied to [overlay].
-  final EdgeInsetsGeometry padding;
+  final EdgeInsetsGeometry overlayPadding;
 
   ///[overlay]'s height.
   final double overlayMaxHeight;
@@ -263,9 +267,11 @@ class _FlutterTaggerState extends State<FlutterTagger> {
         Flexible(
           child: Container(
             clipBehavior: Clip.hardEdge,
+            padding: widget.overlayPadding,
             decoration: BoxDecoration(
               borderRadius: widget.overlayBorderRadius,
               boxShadow: widget.overlayBoxShadow,
+              color: widget.overlayColor,
             ),
             child: SingleChildScrollView(
               controller: controller._scrollController,
@@ -294,7 +300,7 @@ class _FlutterTaggerState extends State<FlutterTagger> {
                   return Container(
                       clipBehavior: Clip.hardEdge,
                       decoration: BoxDecoration(
-                        borderRadius: borderRadius,
+                        borderRadius: borderRadius
                       ),
                       child: widget.tagItemBuilder(tag, controller.selectedTag,
                           index == tags.length - 1));
