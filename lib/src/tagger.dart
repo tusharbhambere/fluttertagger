@@ -239,7 +239,7 @@ class _FlutterTaggerState extends State<FlutterTagger> {
           link: _layerLink,
           showWhenUnlinked: false,
           targetAnchor: Alignment.topLeft,
-          offset: Offset(0, -widget.overlayMaxHeight - 8),
+          offset: const Offset(0, 60),
           child: Material(
             type: MaterialType.transparency,
             child: StreamBuilder(
